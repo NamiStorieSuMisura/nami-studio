@@ -163,8 +163,11 @@ if st.button("🚀 Genera Videoclip Musicale Completo"):
     else:
         st.success("✅ Pre-Flight Check Superato! Avvio generazione videoclip...")
         
-        raw_lines = [line.strip() for line in client_lyrics.split("\n") if line.strip() and not line.startswith("[")]
-        scenes = raw_lines if raw_lines else ["Music video atmosphere", "Character performing", "Climax emotional scene"]
+       # Raggruppamento intelligente delle scene basato sui blocchi del testo (\n\n)
+        raw_blocks = client_lyrics.split("\n\n")
+        scenes = [block.strip() for block in raw_blocks if block.strip()]
+        if not scenes:
+            scenes = ["Music video atmosphere", "Character performing", "Climax emotional scene"]
         
         st.info(f"🎬 **Storyboard Generato:** {len(scenes)} scene identificate.")
         
