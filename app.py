@@ -62,7 +62,7 @@ with st.form("client_cast_form", clear_on_submit=True):
         else:
             st.warning("Inserisci almeno il nome del personaggio.")
 
-# Mostra il cast attivo con opzione di eliminazione mirata (senza perdere tutto)
+# Mostra il cast attivo con opzione di eliminazione mirata
 if st.session_state.cast_members:
     st.markdown("#### 🌟 Cast Attivo per questo Cliente:")
     
@@ -111,10 +111,13 @@ def generate_video_auto_fallback(prompt, image_url=None):
             st.success(f"⚡ Successo con **{model['name']}**!")
             return result
         except Exception as err:
+            err_str = str(err)
+            if "Exhausted balance" in err_str or "locked" in err_str:
+                raise RuntimeError("EXHAUSTED_BALANCE")
             st.warning(f"⚠️ {model['name']} non disponibile. Provo il successivo...")
             time.sleep(1)
             
-    raise RuntimeError("Tutti i modelli video su Fal.ai hanno riscontrato un errore o credito esaurito.")
+    raise RuntimeError("Tutti i modelli video su Fal.ai hanno riscontrato un errore.")
 
 # ---------------------------------------------------------
 # STEP 3: PRE-FLIGHT CHECK & GENERAZIONE
@@ -144,6 +147,7 @@ if st.button("🚀 Genera Videoclip Personalizzato"):
         
         full_cast_prompt = " | ".join(cast_descriptions)
         
+        # Generazione Immagine con Flux
         with st.spinner("🎨 Creazione frame di riferimento del cast..."):
             try:
                 image_prompt = f"Cinematic music video frame featuring: {full_cast_prompt}. High professional quality, detailed lighting."
@@ -159,9 +163,14 @@ if st.button("🚀 Genera Videoclip Personalizzato"):
                 image_url = img_res["images"][0]["url"]
                 st.image(image_url, caption="Frame Guida Generato", use_column_width=True)
             except Exception as e:
-                st.error(f"Errore nella generazione dell'immagine (verifica il saldo su Fal.ai): {e}")
+                err_str = str(e)
+                if "Exhausted balance" in err_str or "locked" in err_str:
+                    st.error("💳 **Crediti Fal.ai esauriti!** La produzione è stata fermata per evitare sprechi. Ricarica il saldo su fal.ai/dashboard/billing per continuare.")
+                else:
+                    st.error(f"Errore nella generazione dell'immagine: {e}")
                 st.stop()
                 
+        # Animazione video intelligente
         with st.spinner("🎬 Animazione video intelligente in corso..."):
             try:
                 video_prompt = f"Dynamic camera movement, cinematic music video style, matching: {client_lyrics[:100]}"
@@ -175,4 +184,7 @@ if st.button("🚀 Genera Videoclip Personalizzato"):
                 else:
                     st.json(video_res)
             except Exception as e:
-                st.error(f"Impossibile completare il video: {e}")
+                if str(e) == "EXHAUSTED_BALANCE":
+                    st.error("💳 **Crediti Fal.ai esauriti!** La produzione è stata fermata per evitare sprechi. Ricarica il saldo su fal.ai/dashboard/billing per continuare.")
+                else:
+                    st.error(f"Impossibile completare il video: {e}")
