@@ -2,6 +2,9 @@ import streamlit as st
 import fal_client
 import os
 import time
+import requests
+import tempfile
+from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
 
 # Configurazione della pagina
 st.set_page_config(
@@ -11,7 +14,7 @@ st.set_page_config(
 )
 
 st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>🎬 NAMI Studio Pro</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Regia Automatica, Storyboard Granulare (30 Scene) & Controllo Umano</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Generatore Automatico, Storyboard Granulare & Montaggio Video Finale</p>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # VERIFICA CHIAVE API
@@ -99,7 +102,7 @@ if st.session_state.cast_members:
                 st.rerun()
 
 # ---------------------------------------------------------
-# STEP 2: AUDIO SUNO & TESTO CANZONE (30 SCENE GRANULARI)
+# STEP 2: AUDIO SUNO & TESTO CANZONE
 # ---------------------------------------------------------
 st.markdown("---")
 st.subheader("🎵 2. Audio Suno & Storyboard Granulare (Fino a 30 Scene)")
@@ -137,7 +140,7 @@ def generate_video_auto_fallback(prompt, image_url=None):
 # STEP 3: CREAZIONE E REVISIONE DELLE SCENE
 # ---------------------------------------------------------
 st.markdown("---")
-if st.button("🚀 Genera Storyboard e Clip per la Revisione"):
+if st.button("🚀 Genera Storyboard Completo (25-30 Scene)"):
     errors = []
     if not api_key:
         errors.append("Manca la FAL_KEY nei secrets.")
@@ -153,17 +156,17 @@ if st.button("🚀 Genera Storyboard e Clip per la Revisione"):
         for err in errors:
             st.markdown(f"- {err}")
     else:
-        st.success("✅ Analisi avviata! Creazione delle scene granulari (fino a 30)...")
+        st.success("✅ Analisi avviata! Estrazione di tutte le scene dal testo...")
         
-        # Parsing avanzato riga per riga per raggiungere una struttura ricca (circa 25-30 scene)
-        raw_blocks = client_lyrics.split("\n\n")
+        # Estrazione avanzata riga per riga per raggiungere circa 25-30 scene
+        raw_lines = client_lyrics.split("\n")
         extracted_scenes = []
-        for b in raw_blocks:
-            lines = [l.strip() for l in b.split("\n") if l.strip() and not l.startswith("[")]
-            for line in lines:
-                extracted_scenes.append(line)
+        for line in raw_lines:
+            cleaned = line.strip()
+            if cleaned and not cleaned.startswith("[") and not cleaned.endswith("]"):
+                extracted_scenes.append(cleaned)
         
-        # Se ci sono troppe poche righe, suddividiamo meglio, altrimenti prendiamo fino a 30 scene chiave
+        # Se ci sono troppe righe le campioniamo a max 30, altrimenti prendiamo tutte
         if len(extracted_scenes) > 30:
             step = len(extracted_scenes) // 30
             scenes = extracted_scenes[::step][:30]
@@ -175,7 +178,6 @@ if st.button("🚀 Genera Storyboard e Clip per la Revisione"):
         cast_desc = f"{primary_member['name']}, {primary_member['desc']}"
         
         st.session_state.storyboard_scenes = []
-        
         progress_bar = st.progress(0)
         total_s = len(scenes)
         
@@ -210,7 +212,6 @@ if st.button("🚀 Genera Storyboard e Clip per la Revisione"):
                 
                 image_url = img_res["images"][0]["url"]
                 
-                # Generazione clip video associata
                 video_prompt = f"Dynamic video animation, {current_style_prompt}, featuring {cast_desc}, action: {scene_text}"
                 video_res = generate_video_auto_fallback(video_prompt, image_url=image_url)
                 clip_url = video_res["video"]["url"] if "video" in video_res else None
@@ -231,7 +232,7 @@ if st.button("🚀 Genera Storyboard e Clip per la Revisione"):
                 
             progress_bar.progress((idx + 1) / total_s)
             
-        st.success("🎉 **Generazione delle scene completata!** Ora puoi revisionare, modificare o approvare il video qui sotto.")
+        st.success(f"🎉 **Generazione completate!** Generate {len(st.session_state.storyboard_scenes)} scene per il brano.")
 
 # ---------------------------------------------------------
 # STEP 4: PANNELLO DI REVISIONE E MODIFICA UMANA
@@ -239,7 +240,7 @@ if st.button("🚀 Genera Storyboard e Clip per la Revisione"):
 if st.session_state.storyboard_scenes:
     st.markdown("---")
     st.subheader("🔍 Pannello di Revisione Umana & Modifiche")
-    st.markdown("Controlla le scene generate. Se una scena non ti convince, puoi modificare il testo del prompt e rigenerarla singolarmente prima di creare il video finale.")
+    st.markdown("Controlla le scene. Se una scena non ti convince, modifica il prompt e rigenerala singolarmente.")
 
     for s_idx, scene in enumerate(st.session_state.storyboard_scenes):
         with st.expander(f"🎬 Scena {scene['id']}: \"{scene['text'][:40]}...\""):
@@ -252,7 +253,6 @@ if st.session_state.storyboard_scenes:
                 else:
                     st.warning("Clip video non disponibile.")
             
-            # Area di modifica personalitazzata per singola scena
             new_prompt_edit = st.text_area(f"Modifica Prompt Scena {scene['id']}", value=scene['prompt'], key=f"edit_p_{s_idx}")
             
             if st.button(f"🔄 Rigenera Solo Scena {scene['id']}", key=f"re_gen_{s_idx}"):
@@ -285,26 +285,76 @@ if st.session_state.storyboard_scenes:
                         vid_res = generate_video_auto_fallback(new_prompt_edit, image_url=new_img_url)
                         new_clip_url = vid_res["video"]["url"] if "video" in vid_res else None
                         
-                        # Aggiorna lo stato locale
                         st.session_state.storyboard_scenes[s_idx]['prompt'] = new_prompt_edit
                         st.session_state.storyboard_scenes[s_idx]['image_url'] = new_img_url
                         st.session_state.storyboard_scenes[s_idx]['clip_url'] = new_clip_url
                         
-                        st.success(f"Scena {scene['id']} rigenerata con successo!")
+                        st.success(f"Scena {scene['id']} rigenerata!")
                         st.rerun()
                     except Exception as ex:
                         st.error(f"Errore durante la rigenerazione: {ex}")
 
     # ---------------------------------------------------------
-    # STEP 5: APPROVAZIONE FINALE E DOWNLOAD
+    # STEP 5: MONTAGGIO AUTOMATICO E DOWNLOAD DEL VIDEO FINALE
     # ---------------------------------------------------------
     st.markdown("---")
-    st.subheader("✨ Approvazione & Esportazione Finale")
+    st.subheader("✨ Montaggio & Esportazione Video Finale")
     
-    if st.button("✅ Approvo il Video: Crea Videoclip Finale"):
-        st.balloons()
-        st.success("🎉 **Videoclip Approvato e Pronto!** Ecco i link di tutte le clip validate pronte per il montaggio finale:")
-        
-        for scene in st.session_state.storyboard_scenes:
-            if scene['clip_url']:
-                st.markdown(f"- **Scena {scene['id']}**: [Scarica Clip MP4]({scene['clip_url']})")
+    if st.button("🎬 Unisci le Clip e Crea il Videoclip Definitivo"):
+        with st.spinner("⏳ Montaggio in corso: sto scaricando le clip, unendole e sincronizzando l'audio Suno..."):
+            try:
+                temp_video_files = []
+                # 1. Scarica tutte le clip valide
+                for scene in st.session_state.storyboard_scenes:
+                    if scene['clip_url']:
+                        r = requests.get(scene['clip_url'])
+                        tf = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                        tf.write(r.content)
+                        tf.close()
+                        temp_video_files.append(tf.name)
+                
+                if not temp_video_files:
+                    st.error("Nessuna clip video valida da unire.")
+                else:
+                    # 2. Carica le clip con MoviePy e uniscile
+                    clips = [VideoFileClip(f) for f in temp_video_files]
+                    final_clip = concatenate_videoclips(clips, method="compose")
+                    
+                    # 3. Aggiungi l'audio Suno del cliente
+                    audio_tf = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+                    audio_tf.write(client_audio.getvalue())
+                    audio_tf.close()
+                    
+                    audio = AudioFileClip(audio_tf.name)
+                    
+                    # Se il video è più lungo dell'audio o viceversa, adattiamo l'audio o il video
+                    final_clip = final_clip.set_audio(audio)
+                    
+                    # 4. Salva il file video finale
+                    output_tf = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+                    final_clip.write_videofile(
+                        output_tf.name,
+                        fps=24,
+                        codec="libx264",
+                        audio_codec="aac",
+                        preset="medium"
+                    )
+                    
+                    # Chiusura delle risorse
+                    for c in clips:
+                        c.close()
+                    audio.close()
+                    final_clip.close()
+                    
+                    st.balloons()
+                    st.success("🎉 **Videoclip Finale Creato con Successo!** Pronto da scaricare e consegnare al cliente.")
+                    
+                    with open(output_tf.name, "rb") as file_out:
+                        st.download_button(
+                            label="📥 Scarica Videoclip Musicale Definitivo (MP4)",
+                            data=file_out,
+                            file_name="NamiStudio_Videoclip_Finale.mp4",
+                            mime="video/mp4"
+                        )
+            except Exception as e:
+                st.error(f"Errore durante il montaggio video: {e}")
