@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 st.markdown("<h1 style='text-align: center; color: #FF4B4B;'>🎬 NAMI Studio</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Generatore di Videoclip AI Multi-Cliente con Fallback Automatico</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Generatore di Videoclip AI Personalizzati con Gestione Avanzata del Cast</p>", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # VERIFICA CHIAVE API
@@ -30,22 +30,24 @@ if not api_key:
 if api_key:
     st.success("✅ Connessione Fal.ai attiva!")
 else:
-    st.error("⚠️ Inserisci FAL_KEY nei Secrets di Streamlit per abilitare la generazione.")
+    st.error("⚠️ Inserisci la FAL_KEY nei Secrets di Streamlit.")
 
 # Inizializzazione della sessione per il cast del cliente
 if "cast_members" not in st.session_state:
     st.session_state.cast_members = []
 
 # ---------------------------------------------------------
-# STEP 1: GESTIONE CAST DEL CLIENTE
+# STEP 1: GESTIONE CAST DEL CLIENTE (Con rimozione singola)
 # ---------------------------------------------------------
 st.markdown("---")
-st.subheader("👥 1. Gestione Cast del Cliente")
+st.subheader("👥 1. Gestione Cast e Dettagli Caratteriali")
+st.write("Definisci i personaggi aggiungendo dettagli fisici ed espressivi (es. *occhi furbetti, aria dolce, sorriso misterioso*).")
 
 with st.form("client_cast_form", clear_on_submit=True):
-    c_name = st.text_input("Nome del Personaggio (es. Luca, Sara, Protagonista)")
-    c_desc = st.text_area("Descrizione visiva / Stile (es. Uomo con giacca in pelle, atmosfera Halloween)")
-    c_file = st.file_uploader("Foto di riferimento (opzionale)", type=["png", "jpg", "jpeg"])
+    c_name = st.text_input("Nome del Personaggio (es. Luca, Chiara)")
+    c_desc = st.text_area("Caratteristiche e Abbigliamento (es. Uomo alto, giacca in pelle)")
+    c_expression = st.text_input("Espressione / Dettagli del viso (es. Sguardo dolce, occhi furbetti, aria malinconica)")
+    c_file = st.file_uploader("Foto di riferimento del personaggio (opzionale)", type=["png", "jpg", "jpeg"])
     
     add_btn = st.form_submit_button("➕ Aggiungi Personaggio al Cast")
     if add_btn:
@@ -53,18 +55,29 @@ with st.form("client_cast_form", clear_on_submit=True):
             st.session_state.cast_members.append({
                 "name": c_name,
                 "desc": c_desc,
+                "expression": c_expression,
                 "has_photo": c_file is not None
             })
             st.success(f"Personaggio '{c_name}' aggiunto con successo!")
         else:
             st.warning("Inserisci almeno il nome del personaggio.")
 
+# Mostra il cast attivo con opzione di eliminazione mirata (senza perdere tutto)
 if st.session_state.cast_members:
     st.markdown("#### 🌟 Cast Attivo per questo Cliente:")
-    for idx, member in enumerate(st.session_state.cast_members):
-        st.info(f"**{idx+1}. {member['name']}** — *{member['desc']}*")
     
-    if st.button("🗑️ Svuota Cast e Inizia Nuovo Cliente"):
+    for idx, member in enumerate(st.session_state.cast_members):
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.info(f"**{idx+1}. {member['name']}**\n\n"
+                    f"- *Aspetto:* {member['desc']}\n\n"
+                    f"- *Espressione:* {member.get('expression', 'Nessuna indicazione')}")
+        with col2:
+            if st.button("❌ Rimuovi", key=f"del_{idx}"):
+                st.session_state.cast_members.pop(idx)
+                st.rerun()
+                
+    if st.button("🗑️ Svuota Intero Cast"):
         st.session_state.cast_members = []
         st.rerun()
 
@@ -75,16 +88,12 @@ st.markdown("---")
 st.subheader("🎵 2. Audio Suno & Sceneggiatura del Cliente")
 
 client_audio = st.file_uploader("Carica il brano audio Suno del cliente (MP3)", type=["mp3", "wav"])
-client_lyrics = st.text_area("Incolla qui il testo della canzone o le indicazioni delle scene", placeholder="[Intro] Chi l'avrebbe detto quella sera...")
+client_lyrics = st.text_area("Incolla qui il testo della canzone o le indicazioni delle scene", placeholder="[Intro] Atmosfera suggestiva...")
 
 # ---------------------------------------------------------
-# FUNZIONE DI GENERAZIONE VIDEO CON FALLBACK AUTOMATICO
+# FUNZIONE DI FALLBACK AUTOMATICO PER IL VIDEO
 # ---------------------------------------------------------
 def generate_video_auto_fallback(prompt, image_url=None):
-    """
-    Tenta di generare il video usando in primis Wan 2.1.
-    Se fallisce o è in manutenzione, scala automaticamente su Minimax / Luma.
-    """
     models_pipeline = [
         {"name": "Wan 2.1 (Top Quality)", "endpoint": "fal-ai/wan/v2.1/image-to-video" if image_url else "fal-ai/wan/v2.1/text-to-video"},
         {"name": "Minimax Hailuo AI (Fallback 1)", "endpoint": "fal-ai/minimax/video-01/image-to-video" if image_url else "fal-ai/minimax/video-01"},
@@ -93,29 +102,25 @@ def generate_video_auto_fallback(prompt, image_url=None):
     
     for model in models_pipeline:
         try:
-            st.write(f"🔄 Tentativo di generazione con **{model['name']}**...")
+            st.write(f"🔄 Tentativo con **{model['name']}**...")
             args = {"prompt": prompt}
             if image_url:
                 args["image_url"] = image_url
 
-            result = fal_client.subscribe(
-                model["endpoint"],
-                arguments=args
-            )
-            st.success(f"⚡ Generazione riuscita con successo tramite **{model['name']}**!")
+            result = fal_client.subscribe(model["endpoint"], arguments=args)
+            st.success(f"⚡ Successo con **{model['name']}**!")
             return result
         except Exception as err:
-            st.warning(f"⚠️ {model['name']} non disponibile o in sovraccarico. Passaggio al modello successivo...")
+            st.warning(f"⚠️ {model['name']} non disponibile. Provo il successivo...")
             time.sleep(1)
             
-    raise RuntimeError("Tutti i modelli video su Fal.ai sono momentaneamente non disponibili. Riprova tra poco.")
+    raise RuntimeError("Tutti i modelli video su Fal.ai hanno riscontrato un errore o credito esaurito.")
 
 # ---------------------------------------------------------
-# STEP 3: PRE-FLIGHT CHECK & GENERAZIONE AUTOMATICA
+# STEP 3: PRE-FLIGHT CHECK & GENERAZIONE
 # ---------------------------------------------------------
 st.markdown("---")
 if st.button("🚀 Genera Videoclip Personalizzato"):
-    # 1. PRE-FLIGHT CHECK
     errors = []
     if not api_key:
         errors.append("Manca la FAL_KEY nei secrets.")
@@ -123,21 +128,25 @@ if st.button("🚀 Genera Videoclip Personalizzato"):
         errors.append("Il cast è vuoto. Aggiungi almeno un personaggio.")
     if not client_audio:
         errors.append("Manca il file audio Suno del cliente.")
-    if not client_lyrics:
-        errors.append("Il testo della canzone o le scene sono vuoti.")
         
     if errors:
         st.error("⚠️ **Pre-Flight Check Fallito!** Risolvi questi punti prima di procedere:")
         for err in errors:
             st.markdown(f"- {err}")
     else:
-        st.success("✅ Pre-Flight Check Superato! Nessun credito a rischio.")
+        st.success("✅ Pre-Flight Check Superato!")
         
-        # 2. GENERAZIONE FRAME DI BASE (Flux)
-        with st.spinner("🎨 Creazione frame di riferimento del cast (Flux)..."):
+        # Composizione dettagliata del cast con espressioni
+        cast_descriptions = []
+        for m in st.session_state.cast_members:
+            desc_str = f"Character name: {m['name']}, Appearance: {m['desc']}, Facial expression & vibe: {m.get('expression', 'natural')}"
+            cast_descriptions.append(desc_str)
+        
+        full_cast_prompt = " | ".join(cast_descriptions)
+        
+        with st.spinner("🎨 Creazione frame di riferimento del cast..."):
             try:
-                cast_details = ", ".join([f"{m['name']} ({m['desc']})" for m in st.session_state.cast_members])
-                image_prompt = f"Cinematic music video scene featuring: {cast_details}. High visual quality, matching context: {client_lyrics[:150]}"
+                image_prompt = f"Cinematic music video frame featuring: {full_cast_prompt}. High professional quality, detailed lighting."
                 
                 img_res = fal_client.subscribe(
                     "fal-ai/flux/dev",
@@ -150,13 +159,12 @@ if st.button("🚀 Genera Videoclip Personalizzato"):
                 image_url = img_res["images"][0]["url"]
                 st.image(image_url, caption="Frame Guida Generato", use_column_width=True)
             except Exception as e:
-                st.error(f"Errore nella generazione dell'immagine di base: {e}")
+                st.error(f"Errore nella generazione dell'immagine (verifica il saldo su Fal.ai): {e}")
                 st.stop()
                 
-        # 3. ANIMAZIONE AUTOMATICA SMART FALLBACK
         with st.spinner("🎬 Animazione video intelligente in corso..."):
             try:
-                video_prompt = f"Cinematic camera movement, music video style: {client_lyrics[:100]}"
+                video_prompt = f"Dynamic camera movement, cinematic music video style, matching: {client_lyrics[:100]}"
                 video_res = generate_video_auto_fallback(video_prompt, image_url=image_url)
                 
                 st.balloons()
