@@ -95,9 +95,18 @@ client_lyrics = st.text_area("Incolla qui il testo della canzone o le indicazion
 # ---------------------------------------------------------
 def generate_video_auto_fallback(prompt, image_url=None):
     models_pipeline = [
-        {"name": "Wan 2.1 (Top Quality)", "endpoint": "fal-ai/wan/v2.1/image-to-video" if image_url else "fal-ai/wan/v2.1/text-to-video"},
-        {"name": "Minimax Hailuo AI (Fallback 1)", "endpoint": "fal-ai/minimax/video-01/image-to-video" if image_url else "fal-ai/minimax/video-01"},
-        {"name": "Luma Dream Machine (Fallback 2)", "endpoint": "fal-ai/luma-dream-machine/image-to-video" if image_url else "fal-ai/luma-dream-machine"}
+        {
+            "name": "Wan 2.1 (Top Quality)", 
+            "endpoint": "fal-ai/wan-i2v" if image_url else "fal-ai/wan-t2v"
+        },
+        {
+            "name": "Minimax Hailuo AI (Fallback 1)", 
+            "endpoint": "fal-ai/minimax/video-01/image-to-video" if image_url else "fal-ai/minimax/video-01"
+        },
+        {
+            "name": "Luma Dream Machine (Fallback 2)", 
+            "endpoint": "fal-ai/luma-dream-machine/image-to-video" if image_url else "fal-ai/luma-dream-machine"
+        }
     ]
     
     for model in models_pipeline:
@@ -114,11 +123,10 @@ def generate_video_auto_fallback(prompt, image_url=None):
             err_str = str(err)
             if "Exhausted balance" in err_str or "locked" in err_str:
                 raise RuntimeError("EXHAUSTED_BALANCE")
-            st.warning(f"⚠️ {model['name']} non disponibile. Provo il successivo...")
+            st.warning(f"⚠️ {model['name']} non disponibile ({err}). Provo il successivo...")
             time.sleep(1)
             
     raise RuntimeError("Tutti i modelli video su Fal.ai hanno riscontrato un errore.")
-
 # ---------------------------------------------------------
 # STEP 3: PRE-FLIGHT CHECK & GENERAZIONE
 # ---------------------------------------------------------
