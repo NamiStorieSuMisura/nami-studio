@@ -1,4 +1,3 @@
-Plaintext
 streamlit
 fal-client
 requests
