@@ -29,7 +29,8 @@ const sections = [
 export default function Home() {
   const [selected, setSelected] = useState("I miei progetti");
   const [projectName, setProjectName] = useState("");
-
+const [audioFile, setAudioFile] = useState<File | null>(null);
+const [lyrics, setLyrics] = useState("");
   return (
     <main className="min-h-screen bg-[#0c0b1b] px-4 py-7 text-white sm:px-8">
       <div className="mx-auto max-w-6xl">
@@ -125,7 +126,53 @@ onClick={() => {
       Prossimo passo: aggiungere la canzone MP3,
       il testo e i personaggi.
     </p>
-  </section>
+ <div className="mt-6 space-y-5">
+  <div>
+    <label className="mb-2 block font-semibold text-fuchsia-200">
+      🎵 Carica la canzone MP3
+    </label>
+    <input
+      type="file"
+      accept=".mp3,audio/mpeg"
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          setAudioFile(file);
+        }
+      }}
+      className="block w-full rounded-xl border border-fuchsia-400/30 bg-[#111025] p-3 text-sm text-white"
+    />
+    {audioFile && (
+      <p className="mt-2 text-sm text-green-300">
+        File selezionato: {audioFile.name}
+      </p>
+    )}
+  </div>
+
+  {audioFile && (
+  <div className="rounded-xl border border-fuchsia-400/30 bg-[#111025] p-4">
+    <p className="mb-3 font-semibold text-fuchsia-200">
+      🎧 Ascolta la canzone
+    </p>
+    <audio
+      controls
+      src={URL.createObjectURL(audioFile)}
+      className="w-full"
+    />
+  </div>
+)}<div>
+    <label className="mb-2 block font-semibold text-fuchsia-200">
+      📝 Testo della canzone
+    </label>
+    <textarea
+      value={lyrics}
+      onChange={(e) => setLyrics(e.target.value)}
+      placeholder="Incolla qui il testo della canzone..."
+      rows={7}
+      className="w-full rounded-xl border border-fuchsia-400/30 bg-[#111025] p-4 text-white"
+    />
+  </div>
+</div> </section>
 )}
         <section className="mt-7 rounded-3xl border border-violet-400/20 bg-[#19162e] p-6">
           <p className="text-xs font-semibold uppercase tracking-widest text-fuchsia-300">
