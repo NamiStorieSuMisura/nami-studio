@@ -28,6 +28,7 @@ const sections = [
 
 export default function Home() {
   const [selected, setSelected] = useState("I miei progetti");
+  const [projectName, setProjectName] = useState("");
 
   return (
     <main className="min-h-screen bg-[#0c0b1b] px-4 py-7 text-white sm:px-8">
@@ -71,13 +72,19 @@ export default function Home() {
             </p>
 
             <button
-              onClick={() => setSelected("I miei progetti")}
+onClick={() => {
+  setSelected("I miei progetti");
+  const nome = prompt("Come vuoi chiamare il nuovo progetto?");
+  if (nome && nome.trim()) {
+    setProjectName(nome.trim());
+  }
+}}
               className="mt-8 rounded-full border border-fuchsia-200 bg-gradient-to-r from-violet-600 to-fuchsia-500 px-7 py-4 text-lg font-bold shadow-[0_0_25px_#d946ef88] transition hover:brightness-125"
             >
               ＋ Nuovo progetto
             </button>
           </div>
-        </section>
+        </section>s
 
         <div className="mb-6 mt-10 flex items-center gap-3">
           <div className="h-8 w-1.5 rounded-full bg-fuchsia-400" />
@@ -108,7 +115,18 @@ export default function Home() {
             </button>
           ))}
         </div>
-
+{projectName && (
+  <section className="mt-7 rounded-3xl border border-fuchsia-400/40 bg-[#19162e] p-6">
+    <p className="text-sm font-semibold text-fuchsia-300">
+      Il tuo nuovo progetto
+    </p>
+    <h2 className="mt-2 text-2xl font-bold">{projectName}</h2>
+    <p className="mt-3 text-sm text-slate-300">
+      Prossimo passo: aggiungere la canzone MP3,
+      il testo e i personaggi.
+    </p>
+  </section>
+)}
         <section className="mt-7 rounded-3xl border border-violet-400/20 bg-[#19162e] p-6">
           <p className="text-xs font-semibold uppercase tracking-widest text-fuchsia-300">
             Sezione selezionata
