@@ -2,6 +2,8 @@
 "use client";
 
 import { useState } from "react";
+import { useEffect } from "react";
+import { supabase } from "../../supabaseClient";
 
 const sections = [
   {
@@ -28,10 +30,134 @@ const sections = [
 
 export default function Home() {
   const [selected, setSelected] = useState("I miei progetti");
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [loginEmail, setLoginEmail] = useState("");
+const [loginPassword, setLoginPassword] = useState("");
   const [projectName, setProjectName] = useState("");
-const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [progettiSalvati, setProgettiSalvati] = useState<
+  { id: number; name: string }[]
+>([]);
+const [audioFile, setAudioFile] = useState<File | null>(null);;
 const [lyrics, setLyrics] = useState("");
+
+useEffect(() => {
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    setUserEmail(user?.email ?? null);
+    if (user) {
+  caricaProgetti();
+  }
+   });
+}, []);
+
+const accedi = async () => {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: loginEmail.trim(),
+    password: loginPassword,
+  });
+
+  if (error) {
+    alert("Accesso non riuscito: " + error.message);
+    return;
+  }
+
+  setUserEmail(data.user.email ?? null);
+  setLoginPassword("");
+
+  await caricaProgetti();
+};
+
+const caricaProgetti = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const { data, error } = await supabase
+    .from("projects")
+    .select("id, name")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    alert("Errore nel caricamento dei progetti: " + error.message);
+    return;
+  }
+
+  setProgettiSalvati(data ?? []);
+};
+
+const salvaProgetto = async () => {
+  if (!projectName.trim()) {
+    alert("Inserisci il nome del progetto.");
+    return;
+  }
+
+  const { data: { user }, error: authError } =
+    await supabase.auth.getUser();
+
+  if (authError || !user) {
+    alert("Devi effettuare l'accesso per salvare il progetto.");
+    return;
+  }
+
+  const { error } = await supabase.from("projects").insert({
+    name: projectName.trim(),
+    user_id: user.id,
+  });
+
+  if (error) {
+    alert("Errore durante il salvataggio: " + error.message);
+    return;
+  }
+
+    alert("Progetto salvato con successo!");
+  setProjectName("");
+};
+
+if (!userEmail) {
   return (
+    <main className="min-h-screen bg-[#0c0b1b] flex items-center justify-center px-4 text-white">
+      <div className="w-full max-w-md rounded-3xl border border-fuchsia-400/30 bg-[#19162e] p-8">
+        <h1 className="text-center text-4xl font-black text-fuchsia-300">
+          NAMI
+        </h1>
+        <p className="mb-8 text-center text-sm text-fuchsia-200">
+          storie su misura
+        </p>
+
+        <h2 className="mb-5 text-xl font-bold">
+          Accesso privato
+        </h2>
+
+        <input
+          type="email"
+          placeholder="La tua email"
+          value={loginEmail}
+          onChange={(e) => setLoginEmail(e.target.value)}
+          className="mb-4 w-full rounded-xl bg-[#111025] p-3 text-white"
+        />
+
+        <input
+          type="password"
+          placeholder="Password"
+          value={loginPassword}
+          onChange={(e) => setLoginPassword(e.target.value)}
+          className="mb-5 w-full rounded-xl bg-[#111025] p-3 text-white"
+        />
+
+        <button
+          type="button"
+          onClick={accedi}
+          className="w-full rounded-xl bg-fuchsia-600 p-3 font-bold hover:bg-fuchsia-500"
+        >
+          Accedi a NAMI
+        </button>
+      </div>
+    </main>
+  );
+}
+
+
+return (
     <main className="min-h-screen bg-[#0c0b1b] px-4 py-7 text-white sm:px-8">
       <div className="mx-auto max-w-6xl">
         <header className="mb-9 flex flex-wrap items-center justify-between gap-4">
@@ -171,8 +297,42 @@ onClick={() => {
       rows={7}
       className="w-full rounded-xl border border-fuchsia-400/30 bg-[#111025] p-4 text-white"
     />
+  
   </div>
-</div> </section>
+
+  <button
+    type="button"
+    onClick={salvaProgetto}
+    className="mt-6 rounded-xl bg-fuchsia-600 px-6 py-3 font-bold text-white hover:bg-fuchsia-500"
+  >
+    💾 Salva progetto
+  </button>
+</div>
+</section>
+)}
+{selected === "I miei progetti" && (
+  <section className="mt-7 rounded-3xl border border-violet-400/20 bg-[#19162e] p-6">
+    <h2 className="mb-4 text-xl font-bold text-white">
+      📁 Progetti salvati
+    </h2>
+
+    {progettiSalvati.length === 0 ? (
+      <p className="text-slate-300">
+        Nessun progetto caricato.
+      </p>
+    ) : (
+      <div className="space-y-3">
+        {progettiSalvati.map((progetto) => (
+          <div
+            key={progetto.id}
+            className="rounded-xl border border-violet-400/20 bg-[#111025] p-4 text-white"
+          >
+            🎬 {progetto.name}
+          </div>
+        ))}
+      </div>
+    )}
+  </section>
 )}
         <section className="mt-7 rounded-3xl border border-violet-400/20 bg-[#19162e] p-6">
           <p className="text-xs font-semibold uppercase tracking-widest text-fuchsia-300">
