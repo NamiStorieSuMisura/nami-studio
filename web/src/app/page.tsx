@@ -35,9 +35,10 @@ export default function Home() {
 const [loginPassword, setLoginPassword] = useState("");
   const [projectName, setProjectName] = useState("");
   const [progettoApertoId, setProgettoApertoId] = useState<number | null>(null);
-  const [progettiSalvati, setProgettiSalvati] = useState<
-  { id: number; name: string }[]
+const [progettiSalvati, setProgettiSalvati] = useState<
+  { id: number; name: string; lyrics: string | null }[]
 >([]);
+
 const [audioFile, setAudioFile] = useState<File | null>(null);;
 const [lyrics, setLyrics] = useState("");
 
@@ -74,7 +75,7 @@ const caricaProgetti = async () => {
 
   const { data, error } = await supabase
     .from("projects")
-    .select("id, name")
+    .select("id, name, lyrics")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -106,7 +107,10 @@ let error;
 if (progettoApertoId !== null) {
   const risultato = await supabase
     .from("projects")
-    .update({ name: projectName.trim() })
+    .update({
+  name: projectName.trim(),
+  lyrics: lyrics,
+})
     .eq("id", progettoApertoId)
     .eq("user_id", user.id);
 
@@ -115,9 +119,10 @@ if (progettoApertoId !== null) {
   const risultato = await supabase
     .from("projects")
     .insert({
-      name: projectName.trim(),
-      user_id: user.id,
-    });
+  name: projectName.trim(),
+  lyrics: lyrics,
+  user_id: user.id,
+});
 
   error = risultato.error;
 }
@@ -370,6 +375,7 @@ onClick={() => {
   onClick={() => {
     setProgettoApertoId(progetto.id);
     setProjectName(progetto.name);
+    setLyrics(progetto.lyrics ?? "");
   }}
   className="mt-3 rounded-xl bg-fuchsia-600 px-4 py-2 font-bold text-white hover:bg-fuchsia-500"
 >
