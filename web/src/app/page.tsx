@@ -183,6 +183,13 @@ const ripristinaProgetto = async (id: number, nome: string) => {
 
   alert("Progetto ripristinato con successo!");
 };
+
+const eliminaDefinitivamente = async (id: number, nome: string) => {
+  alert(
+    `La cancellazione definitiva di "${nome}" è temporaneamente disattivata per sicurezza.`
+  );
+};
+
 async function preparaAscoltoAudio(percorso: string) {
   const { data, error } = await supabase.storage
     .from("nami-audio")
@@ -632,11 +639,9 @@ setAudioFile(null);
           </button>
                     <button
             type="button"
-            onClick={() =>
-              alert("Eliminazione definitiva non ancora attiva.")
-            }
-            className="ml-2 mt-3 rounded-xl bg-red-700 px-4 py-2 font-bold text-white hover:bg-red-600"
-          >
+             onClick={() => eliminaDefinitivamente(progetto.id, progetto.name)}
+  className="ml-2 mt-3 rounded-xl bg-red-700 px-4 py-2 font-bold text-white"
+>
             🗑️ Elimina definitivamente
           </button>
         </div>
