@@ -184,10 +184,84 @@ const ripristinaProgetto = async (id: number, nome: string) => {
   alert("Progetto ripristinato con successo!");
 };
 
+
 const eliminaDefinitivamente = async (id: number, nome: string) => {
-  alert(
-    `La cancellazione definitiva di "${nome}" è temporaneamente disattivata per sicurezza.`
+  if (!window.confirm(
+    `Vuoi eliminare definitivamente "${nome}"?\n\nQuesta operazione è irreversibile.`
+  )) return;
+
+  const nomeConfermato = window.prompt(
+    `Per confermare, scrivi esattamente:\n${nome}`
   );
+
+  if (nomeConfermato !== nome) {
+    alert("Cancellazione annullata: il nome non corrisponde.");
+    return;
+  }
+
+  try {
+    const { data: { user }, error: authError } =
+      await supabase.auth.getUser();
+
+    if (authError || !user) {
+      throw new Error("Devi effettuare l'accesso.");
+    }
+
+    const { data: progetto, error: verificaError } = await supabase
+      .from("projects")
+      .select("id, name, is_trashed")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .eq("is_trashed", true)
+      .maybeSingle();
+
+    if (verificaError) throw verificaError;
+
+    if (!progetto || progetto.name !== nome) {
+      throw new Error("Progetto non trovato nel Cestino.");
+    }
+
+    const cartella = `${user.id}/${id}`;
+    const bucket = supabase.storage.from("nami-audio");
+
+    while (true) {
+      const { data: files, error: listError } =
+        await bucket.list(cartella, { limit: 100 });
+
+      if (listError) throw listError;
+      if (!files || files.length === 0) break;
+
+      const percorsi = files.map(file => `${cartella}/${file.name}`);
+
+      const { error: removeError } = await bucket.remove(percorsi);
+      if (removeError) throw removeError;
+    }
+
+    const { data: eliminato, error: deleteError } = await supabase
+      .from("projects")
+      .delete()
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .eq("is_trashed", true)
+      .select("id")
+      .maybeSingle();
+
+    if (deleteError) throw deleteError;
+
+    if (!eliminato) {
+      throw new Error("Il progetto non è stato eliminato.");
+    }
+
+    await caricaProgetti();
+    await caricaCestino();
+
+    alert(`"${nome}" eliminato definitivamente.`);
+  } catch (error) {
+    alert(
+      "Cancellazione non completata: " +
+      (error instanceof Error ? error.message : String(error))
+    );
+  }
 };
 
 async function preparaAscoltoAudio(percorso: string) {
