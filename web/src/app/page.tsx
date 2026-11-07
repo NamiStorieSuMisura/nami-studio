@@ -43,6 +43,9 @@ const [progettiSalvati, setProgettiSalvati] = useState<
     audio_path: string | null;
   }[]
 >([]);
+const [progettiCestino, setProgettiCestino] = useState<
+  { id: number; name: string; lyrics: string | null; audio_path: string | null }[]
+>([]);
 
 const [audioFile, setAudioFile] = useState<File | null>(null);;
 const [audioPath, setAudioPath] = useState<string | null>(null);
@@ -81,10 +84,11 @@ const caricaProgetti = async () => {
   if (!user) return;
 
   const { data, error } = await supabase
-    .from("projects")
-    .select("id, name, lyrics, audio_path")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false });
+ .from("projects")
+.select("id, name, lyrics, audio_path")
+.eq("user_id", user.id)
+.eq("is_trashed", false)
+.order("created_at", { ascending: false });
 
   if (error) {
     alert("Errore nel caricamento dei progetti: " + error.message);
@@ -92,6 +96,92 @@ const caricaProgetti = async () => {
   }
 
   setProgettiSalvati(data ?? []);
+};
+const spostaNelCestino = async (id: number, nome: string) => {
+  const conferma = window.confirm(
+    `Vuoi spostare "${nome}" nel cestino? Potrai recuperarlo in seguito.`
+  );
+
+  if (!conferma) return;
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    alert("Devi effettuare l'accesso.");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("projects")
+    .update({ is_trashed: true })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) {
+    alert("Errore nello spostamento nel cestino: " + error.message);
+    return;
+  }
+
+  if (progettoApertoId === id) {
+    setProgettoApertoId(null);
+    setProjectName("");
+    setLyrics("");
+    setAudioFile(null);
+    setAudioPath(null);
+    setAudioUrl(null);
+  }
+
+  await caricaProgetti();
+  alert("Progetto spostato nel cestino!");
+};
+const caricaCestino = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const { data, error } = await supabase
+    .from("projects")
+    .select("id, name, lyrics, audio_path")
+    .eq("user_id", user.id)
+    .eq("is_trashed", true)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    alert("Errore nel caricamento del cestino: " + error.message);
+    return;
+  }
+
+  setProgettiCestino(data ?? []);
+};
+const ripristinaProgetto = async (id: number, nome: string) => {
+  const conferma = window.confirm(
+    `Vuoi ripristinare "${nome}" nei tuoi progetti?`
+  );
+
+  if (!conferma) return;
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    alert("Devi effettuare l'accesso.");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("projects")
+    .update({ is_trashed: false })
+    .eq("id", id)
+    .eq("user_id", user.id);
+
+  if (error) {
+    alert("Errore nel ripristino: " + error.message);
+    return;
+  }
+
+  await caricaProgetti();
+  await caricaCestino();
+
+  alert("Progetto ripristinato con successo!");
 };
 async function preparaAscoltoAudio(percorso: string) {
   const { data, error } = await supabase.storage
@@ -490,13 +580,61 @@ setAudioFile(null);
 >
   📂 Apri progetto
 </button>
-
+<button
+  type="button"
+  onClick={() => spostaNelCestino(progetto.id, progetto.name)}
+  className="mt-3 ml-3 rounded-xl border border-red-400/40 bg-red-950/40 px-4 py-2 font-bold text-red-200 hover:bg-red-900/60"
+>
+  🗑️ Sposta nel cestino
+</button>
           </div>
         ))}
       </div>
     )}
   </section>
 )}
+     <section className="mt-7 rounded-3xl border border-violet-400/30 bg-[#19162e] p-6">
+  <h2 className="mb-4 text-xl font-bold text-white">
+    🗑️ Cestino
+  </h2>
+
+  <button
+    type="button"
+    onClick={caricaCestino}
+    className="mb-4 rounded-xl bg-violet-700 px-4 py-2 font-bold text-white hover:bg-violet-600"
+  >
+    🔄 Mostra progetti nel cestino
+  </button>
+
+  {progettiCestino.length === 0 ? (
+    <p className="text-slate-300">
+      Nessun progetto nel cestino caricato.
+    </p>
+  ) : (
+    <div className="space-y-3">
+      {progettiCestino.map((progetto) => (
+        <div
+          key={progetto.id}
+          className="rounded-xl border border-violet-400/20 bg-[#111025] p-4"
+        >
+          <p className="font-semibold text-white">
+            🎬 {progetto.name}
+          </p>
+
+          <button
+            type="button"
+            onClick={() =>
+              ripristinaProgetto(progetto.id, progetto.name)
+            }
+            className="mt-3 rounded-xl bg-green-700 px-4 py-2 font-bold text-white hover:bg-green-600"
+          >
+            ♻️ Ripristina progetto
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+</section> 
         <section className="mt-7 rounded-3xl border border-violet-400/20 bg-[#19162e] p-6">
           <p className="text-xs font-semibold uppercase tracking-widest text-fuchsia-300">
             Sezione selezionata
