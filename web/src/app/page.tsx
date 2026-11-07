@@ -311,9 +311,15 @@ return (
 onClick={() => {
   setSelected("I miei progetti");
   const nome = prompt("Come vuoi chiamare il nuovo progetto?");
-  if (nome && nome.trim()) {
-    setProjectName(nome.trim());
-  }
+
+if (nome && nome.trim()) {
+  setProgettoApertoId(null);
+  setProjectName(nome.trim());
+  setLyrics("");
+  setAudioFile(null);
+  setAudioPath(null);
+  setAudioUrl(null);
+}
 }}
               className="mt-8 rounded-full border border-fuchsia-200 bg-gradient-to-r from-violet-600 to-fuchsia-500 px-7 py-4 text-lg font-bold shadow-[0_0_25px_#d946ef88] transition hover:brightness-125"
             >
