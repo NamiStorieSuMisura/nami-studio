@@ -630,6 +630,15 @@ setAudioFile(null);
           >
             ♻️ Ripristina progetto
           </button>
+                    <button
+            type="button"
+            onClick={() =>
+              alert("Eliminazione definitiva non ancora attiva.")
+            }
+            className="ml-2 mt-3 rounded-xl bg-red-700 px-4 py-2 font-bold text-white hover:bg-red-600"
+          >
+            🗑️ Elimina definitivamente
+          </button>
         </div>
       ))}
     </div>
