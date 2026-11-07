@@ -34,6 +34,7 @@ export default function Home() {
   const [loginEmail, setLoginEmail] = useState("");
 const [loginPassword, setLoginPassword] = useState("");
   const [projectName, setProjectName] = useState("");
+  const [progettoApertoId, setProgettoApertoId] = useState<number | null>(null);
   const [progettiSalvati, setProgettiSalvati] = useState<
   { id: number; name: string }[]
 >([]);
@@ -99,18 +100,39 @@ const salvaProgetto = async () => {
     return;
   }
 
-  const { error } = await supabase.from("projects").insert({
-    name: projectName.trim(),
-    user_id: user.id,
-  });
+  
+let error;
+
+if (progettoApertoId !== null) {
+  const risultato = await supabase
+    .from("projects")
+    .update({ name: projectName.trim() })
+    .eq("id", progettoApertoId)
+    .eq("user_id", user.id);
+
+  error = risultato.error;
+} else {
+  const risultato = await supabase
+    .from("projects")
+    .insert({
+      name: projectName.trim(),
+      user_id: user.id,
+    });
+
+  error = risultato.error;
+}
 
   if (error) {
     alert("Errore durante il salvataggio: " + error.message);
     return;
   }
 
-    alert("Progetto salvato con successo!");
+   alert("Progetto salvato con successo!");
+await caricaProgetti();
+
+if (progettoApertoId === null) {
   setProjectName("");
+}
 };
 
 if (!userEmail) {
@@ -247,7 +269,15 @@ onClick={() => {
     <p className="text-sm font-semibold text-fuchsia-300">
       Il tuo nuovo progetto
     </p>
-    <h2 className="mt-2 text-2xl font-bold">{projectName}</h2>
+    
+<input
+  type="text"
+  value={projectName}
+  onChange={(e) => setProjectName(e.target.value)}
+  placeholder="Nome del progetto"
+  className="mt-2 w-full rounded-xl border border-fuchsia-400/30 bg-[#111025] p-3 text-2xl font-bold text-white"
+/>
+
     <p className="mt-3 text-sm text-slate-300">
       Prossimo passo: aggiungere la canzone MP3,
       il testo e i personaggi.
@@ -328,6 +358,24 @@ onClick={() => {
             className="rounded-xl border border-violet-400/20 bg-[#111025] p-4 text-white"
           >
             🎬 {progetto.name}
+
+         {progettoApertoId === progetto.id && (
+  <p className="mt-2 text-sm font-semibold text-green-400">
+    ✓ Progetto aperto
+  </p>
+)}  
+
+<button
+  type="button"
+  onClick={() => {
+    setProgettoApertoId(progetto.id);
+    setProjectName(progetto.name);
+  }}
+  className="mt-3 rounded-xl bg-fuchsia-600 px-4 py-2 font-bold text-white hover:bg-fuchsia-500"
+>
+  📂 Apri progetto
+</button>
+
           </div>
         ))}
       </div>
