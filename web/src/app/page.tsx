@@ -36,10 +36,17 @@ const [loginPassword, setLoginPassword] = useState("");
   const [projectName, setProjectName] = useState("");
   const [progettoApertoId, setProgettoApertoId] = useState<number | null>(null);
 const [progettiSalvati, setProgettiSalvati] = useState<
-  { id: number; name: string; lyrics: string | null }[]
+  {
+    id: number;
+    name: string;
+    lyrics: string | null;
+    audio_path: string | null;
+  }[]
 >([]);
 
 const [audioFile, setAudioFile] = useState<File | null>(null);;
+const [audioPath, setAudioPath] = useState<string | null>(null);
+const [audioUrl, setAudioUrl] = useState<string | null>(null);
 const [lyrics, setLyrics] = useState("");
 
 useEffect(() => {
@@ -75,7 +82,7 @@ const caricaProgetti = async () => {
 
   const { data, error } = await supabase
     .from("projects")
-    .select("id, name, lyrics")
+    .select("id, name, lyrics, audio_path")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -86,6 +93,42 @@ const caricaProgetti = async () => {
 
   setProgettiSalvati(data ?? []);
 };
+async function preparaAscoltoAudio(percorso: string) {
+  const { data, error } = await supabase.storage
+    .from("nami-audio")
+    .createSignedUrl(percorso, 3600);
+
+  if (error || !data) {
+    alert(
+      "Impossibile recuperare l'MP3: " +
+      (error?.message ?? "Errore sconosciuto")
+    );
+    return;
+  }
+
+  setAudioUrl(data.signedUrl);
+}
+async function caricaAudio(
+  file: File,
+  userId: string,
+  projectId: number
+) {
+  const percorso = `${userId}/${projectId}/${Date.now()}.mp3`;
+
+  const { error } = await supabase.storage
+    .from("nami-audio")
+    .upload(percorso, file, {
+      contentType: "audio/mpeg",
+      upsert: false,
+    });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return percorso;
+}
+
 
 const salvaProgetto = async () => {
   if (!projectName.trim()) {
@@ -93,52 +136,91 @@ const salvaProgetto = async () => {
     return;
   }
 
-  const { data: { user }, error: authError } =
-    await supabase.auth.getUser();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
   if (authError || !user) {
     alert("Devi effettuare l'accesso per salvare il progetto.");
     return;
   }
 
-  
-let error;
+  let idProgetto = progettoApertoId;
 
-if (progettoApertoId !== null) {
-  const risultato = await supabase
-    .from("projects")
-    .update({
-  name: projectName.trim(),
-  lyrics: lyrics,
-})
-    .eq("id", progettoApertoId)
-    .eq("user_id", user.id);
+  if (idProgetto !== null) {
+    const { data, error } = await supabase
+      .from("projects")
+      .update({
+        name: projectName.trim(),
+        lyrics: lyrics,
+      })
+      .eq("id", idProgetto)
+      .eq("user_id", user.id)
+      .select("id")
+      .single();
 
-  error = risultato.error;
-} else {
-  const risultato = await supabase
-    .from("projects")
-    .insert({
-  name: projectName.trim(),
-  lyrics: lyrics,
-  user_id: user.id,
-});
+    if (error || !data) {
+      alert("Errore nel salvataggio: " + (error?.message ?? "Progetto non trovato"));
+      return;
+    }
+  } else {
+    const { data, error } = await supabase
+      .from("projects")
+      .insert({
+        name: projectName.trim(),
+        lyrics: lyrics,
+        user_id: user.id,
+      })
+      .select("id")
+      .single();
 
-  error = risultato.error;
-}
+    if (error || !data) {
+      alert("Errore nel salvataggio: " + (error?.message ?? "Creazione non riuscita"));
+      return;
+    }
 
-  if (error) {
-    alert("Errore durante il salvataggio: " + error.message);
-    return;
+    idProgetto = data.id;
+    setProgettoApertoId(idProgetto);
   }
 
-   alert("Progetto salvato con successo!");
-await caricaProgetti();
+  if (audioFile && idProgetto !== null) {
+    try {
+      const percorso = await caricaAudio(
+        audioFile,
+        user.id,
+        idProgetto
+      );
 
-if (progettoApertoId === null) {
-  setProjectName("");
-}
+      const { error: erroreAudio } = await supabase
+        .from("projects")
+        .update({ audio_path: percorso })
+        .eq("id", idProgetto)
+        .eq("user_id", user.id);
+
+      if (erroreAudio) {
+        alert(
+          "Progetto salvato, ma non è stato possibile associare l'MP3: " +
+          erroreAudio.message
+        );
+        return;
+      }
+
+      setAudioPath(percorso);
+      setAudioFile(null);
+    } catch (errore) {
+      alert(
+        "Progetto salvato, ma caricamento MP3 non riuscito: " +
+        (errore instanceof Error ? errore.message : "Errore sconosciuto")
+      );
+      return;
+    }
+  }
+
+  await caricaProgetti();
+  alert("Progetto salvato con successo!");
 };
+
 
 if (!userEmail) {
   return (
@@ -310,10 +392,23 @@ onClick={() => {
     )}
   </div>
 
-  {audioFile && (
+  {!audioFile && audioUrl && (
   <div className="rounded-xl border border-fuchsia-400/30 bg-[#111025] p-4">
     <p className="mb-3 font-semibold text-fuchsia-200">
-      🎧 Ascolta la canzone
+      🎧 Ascolta la canzone salvata
+    </p>
+    <audio
+      controls
+      src={audioUrl}
+      className="w-full"
+    />
+  </div>
+)}
+
+{audioFile && (
+  <div className="rounded-xl border border-fuchsia-400/30 bg-[#111025] p-4">
+    <p className="mb-3 font-semibold text-fuchsia-200">
+      🎧 Anteprima della canzone selezionata
     </p>
     <audio
       controls
@@ -321,7 +416,8 @@ onClick={() => {
       className="w-full"
     />
   </div>
-)}<div>
+)}
+<div>
     <label className="mb-2 block font-semibold text-fuchsia-200">
       📝 Testo della canzone
     </label>
@@ -376,6 +472,13 @@ onClick={() => {
     setProgettoApertoId(progetto.id);
     setProjectName(progetto.name);
     setLyrics(progetto.lyrics ?? "");
+    setAudioPath(progetto.audio_path ?? null);
+    setAudioUrl(null);
+
+if (progetto.audio_path) {
+  void preparaAscoltoAudio(progetto.audio_path);
+}
+setAudioFile(null);
   }}
   className="mt-3 rounded-xl bg-fuchsia-600 px-4 py-2 font-bold text-white hover:bg-fuchsia-500"
 >
